@@ -50,28 +50,6 @@ public:
 		initialize(type, n);
 	}
   
-  void looprecstart(uint32_t max_length_ms) {
-    memory_length = (max_length_ms*(AUDIO_SAMPLE_RATE_EXACT/1000.0f))+0.5f;
-    head_offset = 0;
-  }
-
-  uint32_t get_position() { //returns the current buffer position in mS
-    return ((1000.0f*head_offset-500)/AUDIO_SAMPLE_RATE_EXACT);
-  }
-
-  void set_position(uint32_t new_position_ms) { //sets new position 
-    uint32_t new_position_smpl = (new_position_ms*(AUDIO_SAMPLE_RATE_EXACT/1000.0f))+0.5f;
-    if (new_position_smpl <= memory_length) head_offset = new_position_smpl;
-  }
-
-  uint32_t looprecend(uint8_t channel) {
-    delay_length[channel] = head_offset;
-   	memory_length = head_offset;
-    uint32_t length_ms = get_position();
-    head_offset = 0;
-    return (length_ms);
-  }
-
 	void delay(uint8_t channel, float milliseconds) {
 		if (channel >= 8 || memory_type >= AUDIO_MEMORY_UNDEFINED) return;
 		if (milliseconds < 0.0) milliseconds = 0.0;
