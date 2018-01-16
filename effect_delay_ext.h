@@ -34,7 +34,8 @@ enum AudioEffectDelayMemoryType_t {
 	AUDIO_MEMORY_23LC1024 = 0,	// 128k x 8 S-RAM
 	AUDIO_MEMORY_MEMORYBOARD = 1,	
 	AUDIO_MEMORY_CY15B104 = 2,	// 512k x 8 F-RAM	
-	AUDIO_MEMORY_UNDEFINED = 3
+	AUDIO_MEMORY_MEMBRD_CY15B104 = 3,	// 512k x 8 F-RAMs on MEMORYBOARD CS arch.
+	AUDIO_MEMORY_UNDEFINED = 4
 };
 
 class AudioEffectDelayExternal : public AudioStream
@@ -48,6 +49,28 @@ public:
 		uint32_t n = (milliseconds*(AUDIO_SAMPLE_RATE_EXACT/1000.0f))+0.5f;
 		initialize(type, n);
 	}
+  
+  void looprecstart(uint32_t max_length_ms) {
+    memory_length = (max_length_ms*(AUDIO_SAMPLE_RATE_EXACT/1000.0f))+0.5f;
+    head_offset = 0;
+  }
+
+  uint32_t get_position() { //returns the current buffer position in mS
+    return ((1000.0f*head_offset-500)/AUDIO_SAMPLE_RATE_EXACT);
+  }
+
+  void set_position(uint32_t new_position_ms) { //sets new position 
+    uint32_t new_position_smpl = (new_position_ms*(AUDIO_SAMPLE_RATE_EXACT/1000.0f))+0.5f;
+    if (new_position_smpl <= memory_length) head_offset = new_position_smpl;
+  }
+
+  uint32_t looprecend(uint8_t channel) {
+    delay_length[channel] = head_offset;
+   	memory_length = head_offset;
+    uint32_t length_ms = get_position();
+    head_offset = 0;
+    return (length_ms);
+  }
 
 	void delay(uint8_t channel, float milliseconds) {
 		if (channel >= 8 || memory_type >= AUDIO_MEMORY_UNDEFINED) return;
@@ -80,7 +103,7 @@ private:
 	uint32_t head_offset;     // head index (incoming) data into external memory
 	uint32_t delay_length[8]; // # of sample delay for each channel (128 = no delay)
 	uint8_t  activemask;      // which output channels are active
-	uint8_t  memory_type;     // 0=23LC1024, 1=Frank's Memoryboard
+	uint8_t  memory_type;     // 0=23LC1024, 1=Frank's Memoryboard, see AudioEffectDelayMemoryType_t
 	static uint32_t allocated[2];
 	audio_block_t *inputQueueArray[1];
 };

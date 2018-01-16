@@ -154,6 +154,14 @@ void AudioEffectDelayExternal::initialize(AudioEffectDelayMemoryType_t type, uin
 		pinMode(SPIRAM_CS_PIN, OUTPUT);
 		digitalWriteFast(SPIRAM_CS_PIN, HIGH);
 			
+	} else if (type == AUDIO_MEMORY_MEMBRD_CY15B104) {
+		memsize = 1572864;
+		pinMode(MEMBOARD_CS0_PIN, OUTPUT);
+		pinMode(MEMBOARD_CS1_PIN, OUTPUT);
+		pinMode(MEMBOARD_CS2_PIN, OUTPUT);
+		digitalWriteFast(MEMBOARD_CS0_PIN, LOW);
+		digitalWriteFast(MEMBOARD_CS1_PIN, LOW);
+		digitalWriteFast(MEMBOARD_CS2_PIN, LOW);		
 	} else {
 		return;
 	}
@@ -206,6 +214,29 @@ void AudioEffectDelayExternal::read(uint32_t offset, uint32_t count, int16_t *da
 			SPI.transfer16((0x03 << 8) | (chipaddr >> 16));
 			SPI.transfer16(chipaddr & 0xFFFF);
 			uint32_t num = 0x10000 - (addr & 0xFFFF);
+			if (num > count) num = count;
+			count -= num;
+			addr += num;
+			do {
+				*data++ = (int16_t)(SPI.transfer16(0));
+			} while (--num > 0);
+		}
+		digitalWriteFast(MEMBOARD_CS0_PIN, LOW);
+		digitalWriteFast(MEMBOARD_CS1_PIN, LOW);
+		digitalWriteFast(MEMBOARD_CS2_PIN, LOW);
+		SPI.endTransaction();
+	} else if (memory_type == AUDIO_MEMORY_MEMBRD_CY15B104) {
+		SPI.beginTransaction(SPISETTING);
+		while (count) {
+			uint32_t chip = (addr >> 18) + 1;
+			digitalWriteFast(MEMBOARD_CS0_PIN, chip & 1);
+			digitalWriteFast(MEMBOARD_CS1_PIN, chip & 2);
+			digitalWriteFast(MEMBOARD_CS2_PIN, chip & 4);
+       
+			uint32_t chipaddr = (addr & 0x3FFFF) << 1;
+			SPI.transfer16((0x03 << 8) | (chipaddr >> 16));
+			SPI.transfer16(chipaddr & 0xFFFF);
+			uint32_t num = 0x40000 - (addr & 0x3FFFF);
 			if (num > count) num = count;
 			count -= num;
 			addr += num;
@@ -272,6 +303,38 @@ void AudioEffectDelayExternal::write(uint32_t offset, uint32_t count, const int1
 			SPI.transfer16((0x02 << 8) | (chipaddr >> 16));
 			SPI.transfer16(chipaddr & 0xFFFF);
 			uint32_t num = 0x10000 - (addr & 0xFFFF);
+			if (num > count) num = count;
+			count -= num;
+			addr += num;
+			do {
+				int16_t w = 0;
+				if (data) w = *data++;
+				SPI.transfer16(w);
+			} while (--num > 0);
+		}
+		digitalWriteFast(MEMBOARD_CS0_PIN, LOW);
+		digitalWriteFast(MEMBOARD_CS1_PIN, LOW);
+		digitalWriteFast(MEMBOARD_CS2_PIN, LOW);
+		SPI.endTransaction();
+	} else if (memory_type == AUDIO_MEMORY_MEMBRD_CY15B104) {		
+		SPI.beginTransaction(SPISETTING);
+		while (count) {
+			uint32_t chip = (addr >> 18) + 1;
+			digitalWriteFast(MEMBOARD_CS0_PIN, chip & 1);
+			digitalWriteFast(MEMBOARD_CS1_PIN, chip & 2);
+			digitalWriteFast(MEMBOARD_CS2_PIN, chip & 4);
+			SPI.transfer(0x06); //write-enable before every write
+			digitalWriteFast(MEMBOARD_CS0_PIN, LOW);
+			digitalWriteFast(MEMBOARD_CS1_PIN, LOW);
+			digitalWriteFast(MEMBOARD_CS2_PIN, LOW);
+			asm volatile ("NOP\n NOP\n NOP\n NOP\n NOP\n NOP\n");  //maybe not needed with extra CSs?
+			digitalWriteFast(MEMBOARD_CS0_PIN, chip & 1);
+			digitalWriteFast(MEMBOARD_CS1_PIN, chip & 2);
+			digitalWriteFast(MEMBOARD_CS2_PIN, chip & 4);
+			uint32_t chipaddr = (addr & 0x3FFFF) << 1;
+			SPI.transfer16((0x02 << 8) | (chipaddr >> 16));
+			SPI.transfer16(chipaddr & 0xFFFF);
+			uint32_t num = 0x40000 - (addr & 0x3FFFF);
 			if (num > count) num = count;
 			count -= num;
 			addr += num;
